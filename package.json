@@ -1,0 +1,14 @@
+{
+  "name": "hue-scene-mgr",
+  "version": "0.0.1",
+  "description": "Allows to read and transform hue scenes.",
+  "main": "index.js",
+  "author": "baflo <me@baflo.tech>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node-fetch": "^2.5.10"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
+}

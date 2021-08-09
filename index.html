@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="index.js"></script>
+</head>
+
+<body>
+    <div id="error" style="color: red"></div>
+
+    <h1>Hue Bridge IP</h1>
+    <input type="text" id="hue-bridge-ip" onchange="save(this.id, this.value)" />
+    <select id="discovered-hue-bridges"
+        onchange="document.getElementById('hue-bridge-ip').value = this.value; save('hue-bridge-ip', this.value)">
+    </select>
+    <br>
+    <button onclick="printDiscoveredHueBridges()">
+        Discover hue bridges
+    </button>
+
+    <h1>Current user</h1>
+    <div id="current-user"></div>
+    <br>
+    <button onclick="createNewUser().then(user => save('username', user)).then(repaint).catch(showError)">
+        Create new user
+    </button>
+
+    <h1>Commands</h1>
+    Change light state
+    <select id="command-lights-id" onchange="save(this.id, this.value); repaint()"></select>
+    <select id="command-scenes-id" onchange="save(this.id, this.value); repaint()"></select>
+    <button onclick="printLightState(selectValue('command-scenes-id'), selectValue('command-lights-id'))">
+        Get light state
+    </button>
+    <div id="command-set-light-state"></div>
+    <button
+        onclick="setLightState(selectValue('command-scenes-id'), selectValue('command-lights-id'), document.getElementById('command-set-light-state-value').value)">
+        Set light state
+    </button>
+
+
+    <h1>Lights</h1>
+    <button onclick="getLights().then(data => save('lights', data)).then(repaint).catch(showError)">
+        Reload lights
+    </button>
+    Filter manufacturer:
+    <select id="filter-lights-manufacturername" onchange="save(this.id, this.value); repaint()"></select>
+    <div id="lights" style="max-height: 300px; overflow-y: scroll; padding: 1em;"></div>
+
+    <h1>Groups</h1>
+    <button onclick="getGroups().then(data => save('groups', data)).then(repaint).catch(showError)">
+        Reload groups
+    </button>
+    Filter light:
+    <select id="filter-groups-light-id" onchange="save(this.id, this.value); repaint()"></select>
+    Filter type:
+    <select id="filter-groups-type" onchange="save(this.id, this.value); repaint()"></select>
+    <div id="groups" style="max-height: 300px; overflow-y: scroll; padding: 1em;"></div>
+
+    <h1>Scenes</h1>
+    <button onclick="getScenes().then(data => save('scenes', data)).then(repaint).catch(showError)">
+        Reload scenes
+    </button>
+    Filter name:
+    <select id="filter-scenes-name" onchange="save(this.id, this.value); repaint()"></select>
+    Filter light:
+    <select id="filter-scenes-light-id" onchange="save(this.id, this.value); repaint()"></select>
+    Filter group:
+    <select id="filter-scenes-group-id" onchange="save(this.id, this.value); repaint()"></select>
+    <div id="scenes" style="max-height: 300px; overflow-y: scroll; padding: 1em;"></div>
+
+    <script>
+        function showError(error) {
+            console.log(error)
+            document.getElementById("error").innerText = error.message;
+        }
+
+        function selectValue(id) {
+            return document.getElementById(id).value;
+        }
+
+        async function repaint() {
+            const username = load("username");
+
+            if (!username) {
+                return;
+            }
+
+            document.getElementById("current-user").innerText = username;
+
+            const lights = load("lights");
+            printFilter("filter-lights-manufacturername", "manufacturername", lights);
+            printList("lights", lights, { "manufacturername": selectValue("filter-lights-manufacturername") }, [
+                {
+                    title: "ID",
+                    value: e => e.id,
+                },
+                {
+                    title: "Name",
+                    value: e => e.name,
+                },
+                {
+                    title: "Manufacturer",
+                    value: e => e.manufacturername,
+                },
+                {
+                    title: "Model ID",
+                    value: e => e.modelid,
+                },
+                {
+                    title: "Software Version",
+                    value: e => e.swversion,
+                },
+                {
+                    title: "Software Update State",
+                    value: e => e.swupdate.state,
+                },
+            ]);
+
+            const groups = load("groups");
+            printFilter("filter-groups-light-id", "id",
+                Object.entries(lights).map(([id, e]) => ({ id, ...e })).sort((a, b) => +a.id - +b.id)
+            );
+            printFilter("filter-groups-type", "type", groups);
+            printList("groups", groups,
+                {
+                    lights: selectValue("filter-groups-light-id"),
+                    type: selectValue("filter-groups-type")
+                },
+                [
+                    {
+                        title: "ID",
+                        value: e => e.id,
+                    },
+                    {
+                        title: "Name",
+                        value: e => e.name,
+                    },
+                    {
+                        title: "Type",
+                        value: e => e.type,
+                    },
+                    {
+                        title: "Lights",
+                        value: e => e.lights.join(", "),
+                    },
+                ]
+            )
+
+            const scenes = load("scenes");
+            printFilter("filter-scenes-name", "name", scenes);
+            printFilter("filter-scenes-light-id", "id", Object.entries(lights).map(([id, e]) => ({ id, ...e }))
+                .sort((a, b) => +a.id - +b.id));
+            printFilter("filter-scenes-group-id", "id", Object.entries(groups).map(([id, e]) => ({ id, ...e }))
+                .sort((a, b) => +a.id - +b.id));
+            printList("scenes", scenes,
+                {
+                    name: selectValue("filter-scenes-name"),
+                    lights: selectValue("filter-scenes-light-id"),
+                    group: selectValue("filter-scenes-group-id"),
+                },
+                [
+                    {
+                        title: "ID",
+                        value: e => e.id,
+                    },
+                    {
+                        title: "Name",
+                        value: e => e.name,
+                    },
+                    {
+                        title: "lights",
+                        value: e => e.lights.join(", "),
+                    },
+                    {
+                        title: "Group",
+                        value: e => e.group,
+                    },
+                ]);
+
+            printFilter("command-lights-id", "id",
+                Object.entries(lights).map(([id, e]) => ({ id, ...e })).sort((a, b) => +a.id - +b.id)
+            );
+
+            printFilter("command-scenes-id", "id",
+                Object.entries(scenes)
+                    .map(([id, e]) => ({ id, ...e }))
+                    .filter(({ lights }) => ["ALL"].concat(lights).includes(document.getElementById("command-lights-id").value))
+                    .sort((a, b) => +a.id - +b.id)
+                    .map(e => ({ displayName: e.name, ...e }))
+            );
+        }
+
+        repaint();
+
+        function printFilter(selectElementId, filterKey, entries) {
+            const currentValue = load(selectElementId);
+            const selectElement = document.getElementById(selectElementId);
+            selectElement.innerHTML = "";
+
+            const option = document.createElement("option");
+            option.innerText = "ALL";
+            option.value = "ALL";
+            selectElement.appendChild(option);
+
+            getFilterValues(entries, filterKey)
+                .forEach(entry => {
+                    const option = document.createElement("option");
+                    option.innerText = entry.displayName ? `${entry[filterKey]} (${entry.displayName})` : entry[filterKey];
+                    option.value = entry[filterKey];
+                    option.selected = entry[filterKey] === currentValue;
+                    selectElement.appendChild(option);
+                });
+
+        }
+
+        function printList(parentElementId, entries, filters, list) {
+            const parentElement = document.getElementById(parentElementId);
+
+            parentElement.innerHTML = "";
+            filterEntries(entries, filters)
+                .forEach(entry => {
+                    const div = document.createElement("div");
+
+                    list.forEach(el => {
+                        const elDiv = document.createElement("div");
+                        elDiv.innerText = `${el.title}: ${el.value(entry)}`;
+                        div.appendChild(elDiv);
+                    })
+
+                    div.appendChild(document.createElement("hr"));
+
+                    parentElement.appendChild(div);
+                })
+        }
+
+        async function printLightState(sceneId, lightId) {
+            const parentElement = document.getElementById("command-set-light-state");
+            parentElement.innerHTML = "";
+
+            const lightState = await getLightState(sceneId, lightId).then(data => JSON.stringify(data, null, 2));
+            const textArea = document.createElement("textarea");
+            textArea.id = "command-set-light-state-value";
+            textArea.value = lightState;
+            textArea.cols = 60;
+            textArea.rows = 6;
+            parentElement.appendChild(textArea);
+        }
+
+        async function printDiscoveredHueBridges() {
+            const bridges = await discoverHueBridges();
+
+            const parent = document.getElementById("discovered-hue-bridges");
+            parent.innerHTML = "";
+
+            bridges.forEach(bridge => {
+                const o = document.createElement("option");
+                o.value = bridge.internalipaddress;
+                o.text = bridge.internalipaddress;
+                parent.appendChild(o);
+            });
+        }
+
+        printDiscoveredHueBridges();
+        document.getElementById("hue-bridge-ip").value = load("hue-bridge-ip");
+    </script>
+</body>
+
+</html>
